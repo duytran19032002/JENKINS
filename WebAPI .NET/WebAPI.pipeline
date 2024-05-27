@@ -1,0 +1,79 @@
+pipeline {
+    agent any
+    
+    environment {
+        DEPLOY_PATH = "C:\\IIS\\AdminApp"
+    }
+
+    stages {
+        stage('Check out ') {
+            steps {
+                git branch : "${env:Branch_Name}",
+                credentialsId: "${env:GIT_CRED_ID}",
+                url: "https://ngocduy190302@dev.azure.com/ngocduy190302/Admin%20App/_git/Admin%20App"
+            }
+        
+            post {
+                failure {
+                     echo 'check out prj FAILURE'
+                }   
+        }
+        }
+        
+        stage('Build Project') {
+            steps {
+                powershell '''
+                $jsonPath= "C:/ProgramData/Jenkins/.jenkins/workspace/UAT-AdminApp/AdminApp/wwwroot/appsettings.json"
+                $s = Get-Content $jsonPath -Raw | ConvertFrom-Json
+                $s.BackendApiUrl =  $env:BACKEND_API_URL
+                $s.IdentityServerConfig.IdentityServerUrl = $env:IDENTITY_SERVER_URL
+                
+                $s | ConvertTo-Json -Depth 9 | Set-Content $jsonPath
+                dotnet build Admin.sln
+                '''
+            }
+            post {
+                failure {
+                     echo ' build prj FAILURE'
+                }
+        }
+        }
+        stage('Publish Project') {
+            steps {
+                powershell '''
+                dotnet publish AdminApp/AdminApp.csproj -o "PUBLISH" /p:Environment=UAT -c Release -r win10-x64
+                '''
+            }
+            post {
+                failure {
+                     echo ' build prj FAILURE'
+                }
+        }
+        }
+        
+        
+        stage('Deploy to IIS') {
+            steps {
+                powershell '''
+                $DeploymentPool="admin.local"
+                Stop-WebAppPool -Name $DeploymentPool
+                Stop-WebSite -Name $DeploymentPool
+                
+                Start-Sleep -Seconds 5
+                
+                robocopy "PUBLISH" "${env:DEPLOY_PATH}" /E /MIR
+                Start-WebAppPool -Name $DeploymentPool
+                Start-WebSite -Name $DeploymentPool
+                
+                exit 0
+                '''
+            }
+            post {
+                failure {
+                     echo '  prj FAILURE'
+                }
+        }
+        }
+ 
+    }
+}

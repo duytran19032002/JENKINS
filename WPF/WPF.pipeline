@@ -1,0 +1,40 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Checkout') {
+            steps {
+               checkout scmGit(branches: [[name: '*/main']], extensions: [], userRemoteConfigs: [[credentialsId: 'githubtoken', url: 'https://github.com/duytran19032002/DeviceManagementDestopApp.git']])
+                echo "Done CheckCheckout"
+                
+            }
+        }
+        
+        
+        stage('Build') {
+            steps {
+
+                script {
+                    powershell '''
+                    dotnet restore FabLab.DeviceManagement.DesktopApplication.sln
+                    '''
+                }
+                     echo " done restore"
+                    powershell '''
+                     dotnet build FabLab.DeviceManagement.DesktopApplication.sln /p:Configuration=Release /p:Platform="Any CPU"
+                     '''
+                echo " done build"
+            }
+        }
+
+        stage('Deploy') {
+            steps { 
+                echo " start run"
+                    // Khởi chạy lại ứng dụng với mã mới
+                    powershell ''' 
+                     start FabLab.DeviceManagement.DesktopApplication/bin/Release/net6.0-windows/FabLab.DeviceManagement.DesktopApplication.exe
+                    '''
+            }
+        }
+    }
+}
